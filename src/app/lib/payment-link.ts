@@ -1,0 +1,3 @@
+import {createHmac,timingSafeEqual} from 'crypto';
+export function paymentToken(session:string,account:string){const key=process.env.STRIPE_SECRET_KEY;if(!key?.startsWith('sk_test_'))throw new Error('Sandbox key required');return createHmac('sha256',key).update(`sage-payment:${account}:${session}`).digest('hex');}
+export function validPaymentToken(session:string,account:string,token:string){if(!/^[a-f0-9]{64}$/.test(token)||!/^acct_\w+$/.test(account)||!/^cs_test_\w+$/.test(session))return false;return timingSafeEqual(Buffer.from(paymentToken(session,account),'hex'),Buffer.from(token,'hex'));}

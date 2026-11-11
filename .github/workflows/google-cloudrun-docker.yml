@@ -1,0 +1,26 @@
+name: 'Build and Deploy to Cloud Run'
+
+on:
+  workflow_dispatch:
+    inputs:
+      subdomain:
+        description: 'What subdomain would you like to deploy to?'
+        required: true
+      custom_env_file:
+        type: string
+        description: 'Paste your .env file (custom deployments only)'
+        required: true
+        default: ''
+
+jobs:
+  deploy:
+    uses: stripe-demos/demoeng-ci/.github/workflows/deploy-cloud-run-service.yml@main
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: dory
+      subdomain: ${{ github.event.inputs.subdomain }}
+      custom_env_file: ${{ github.event.inputs.custom_env_file }}
+      region: us-central1
+    secrets: inherit

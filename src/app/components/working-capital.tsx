@@ -1,0 +1,30 @@
+'use client';
+import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import {ArrowRight,TrendingUp,RefreshCw,ShieldCheck,AlertCircle,CheckCircle2} from 'lucide-react';
+import {ConnectComponentsProvider,ConnectCapitalFinancingPromotion,ConnectCapitalFinancing} from '@stripe/react-connect-js';
+import {customerConnect} from './connect-client';
+import {availableOffer,financingInProgress,type FinancingOffer} from '../lib/capital-model';
+
+type Snapshot={offers:FinancingOffer[];checkedAt:string};
+const currency=(amount:number,code:string)=>new Intl.NumberFormat('en-GB',{style:'currency',currency:code.toUpperCase(),maximumFractionDigits:0}).format(amount/100);
+function CapitalExperience({account,managing,onSubmitted}:{account:string;managing:boolean;onSubmitted:()=>void}){
+ const instance=useMemo(()=>customerConnect(account,'capital').instance,[account]);
+ const [failed,setFailed]=useState(false);const [submitted,setSubmitted]=useState(false);
+ const onError=()=>setFailed(true);
+ return <div className="capital-embedded">{failed&&<div className="alert warning" role="alert"><AlertCircle size={18}/><span>The financing form could not load. Your application and funds are unchanged. Refresh this page to try again.</span></div>}{submitted&&<div className="alert success" role="status"><CheckCircle2 size={18}/><span>Application submitted. This is not funding confirmation. Your status updates automatically.</span></div>}<ConnectComponentsProvider connectInstance={instance}>{managing||submitted?<ConnectCapitalFinancing onLoadError={onError}/>:<ConnectCapitalFinancingPromotion layout="full" onLoadError={onError} onApplicationSubmitted={()=>{setSubmitted(true);onSubmitted();}}/>}</ConnectComponentsProvider></div>;
+}
+export function WorkingCapital({account,compact=false,onOpen}:{account:string;compact?:boolean;onOpen?:()=>void}){
+ const [snapshot,setSnapshot]=useState<Snapshot|null>(null);const [error,setError]=useState(false);const [busy,setBusy]=useState(false);const [showApplication,setShowApplication]=useState(false);const inFlight=useRef(false);
+ const refresh=useCallback(async()=>{if(inFlight.current)return;inFlight.current=true;setBusy(true);try{const response=await fetch('/api/sage/capital',{cache:'no-store'});const body=await response.json();if(!response.ok)throw new Error('Financing unavailable');setSnapshot(body);setError(false);}catch{setError(true);}finally{inFlight.current=false;setBusy(false);}},[]);
+ useEffect(()=>{void refresh();const timer=setInterval(()=>{if(document.visibilityState==='visible')void refresh();},30000);return()=>clearInterval(timer);},[refresh]);
+ const offer=availableOffer(snapshot?.offers||[]);const managing=financingInProgress(snapshot?.offers||[]);const terms=offer?.offered_terms;
+ const heading=error?'Working capital status unavailable':managing?'Manage your business financing':terms?`${currency(terms.advance_amount,terms.currency)} financing offer available`:'Manage your working capital';
+ const description=error?'We could not refresh financing availability. Your other services are unaffected.':managing?'Follow your application, funding status and repayment activity in one place.':terms?'Review your offer, choose an amount and apply without leaving Sage. An offer is not approval or funding.':'Explore financing for your next business expense. Offers depend on your business and payment history; financing is not guaranteed.';
+ if(compact)return <section className="panel panel-padding capital-summary"><div className="capital-heading"><TrendingUp size={24}/><span className="badge neutral">{error?'Check again':!snapshot?'Checking availability':managing?'Financing':terms?'Offer available':'Explore financing'}</span></div><h2>{heading}</h2><p>{description}</p><button className="btn secondary" onClick={onOpen}>Manage working capital <ArrowRight size={16}/></button></section>;
+ return <section className="panel panel-padding working-capital" aria-labelledby="working-capital-title"><div className="panel-title"><div><span className="eyebrow">BUSINESS FINANCING</span><h2 id="working-capital-title">{heading}</h2><p>{description}</p></div><TrendingUp size={28}/></div>{error?<div className="alert warning" role="alert"><AlertCircle size={18}/><span>Financing availability could not be retrieved. No eligibility decision has been made.</span></div>:!snapshot?<p role="status">Checking financing availability…</p>:<>
+ {terms&&<><div className="capital-terms"><div><span>Available offer</span><strong>{currency(terms.advance_amount,terms.currency)}</strong></div><div><span>Fixed financing fee</span><strong>{currency(terms.fee_amount,terms.currency)}</strong></div><div><span>Payment withholding rate</span><strong>{new Intl.NumberFormat('en-GB',{style:'percent',maximumFractionDigits:2}).format(terms.withhold_rate)}</strong></div></div><p className="tiny-note">These are the offer’s maximum terms. Review the full agreement, repayment obligations and any guarantees in the application before deciding.</p></>}
+ {!terms&&!managing&&<div className="next-step-note"><ShieldCheck size={24}/><div><strong>No financing offer available</strong><p>Your business can keep using its other services. Payment history can contribute to future eligibility, but does not guarantee an offer.</p></div></div>}
+ <div className="button-row"><button className="btn primary" onClick={()=>setShowApplication(true)}>{managing?'View financing & repayments':terms?'Review offer & apply':'About business financing'}<ArrowRight size={16}/></button></div>
+ {showApplication&&<CapitalExperience key={account} account={account} managing={managing} onSubmitted={()=>void refresh()}/>}
+ </>}<div className="capital-footer"><p className="tiny-note">Applications are subject to review. In the UK, financing is provided by YouLend. Full terms, eligibility and required disclosures are shown before you apply. Financing funds are not included in your Sage cash balance until an actual deposit is received.</p><button className="text-btn" disabled={busy} onClick={()=>void refresh()}><RefreshCw size={15} className={busy?'spin':''}/>Refresh financing status</button></div></section>;
+}

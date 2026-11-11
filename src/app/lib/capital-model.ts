@@ -1,0 +1,3 @@
+export type FinancingOffer={id:string;account:string;livemode:boolean;status:string;created:number;expires_after?:number;financing_type:string;offered_terms?:{advance_amount:number;fee_amount:number;currency:string;withhold_rate:number};accepted_terms?:{advance_amount:number;fee_amount:number;currency:string;withhold_rate:number}};
+export function availableOffer(offers:FinancingOffer[]){return offers.find(offer=>offer.status==='delivered'&&(!offer.expires_after||offer.expires_after>Date.now()/1000));}
+export function financingInProgress(offers:FinancingOffer[]){return offers.some(offer=>['accepted','paid_out'].includes(offer.status));}
